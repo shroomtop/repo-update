@@ -19,9 +19,26 @@
     .check { color: #22c55e; font-weight: bold; }
     .x { color: #f87171; font-weight: bold; }
     .done-badge { @apply inline-block bg-green-600 text-white px-2 py-1 rounded ml-2; }
+    #legal-consent-modal { position:fixed;top:0;left:0;width:100vw;height:100vh;background:#222b;z-index:9999;display:flex;align-items:center;justify-content:center;}
+    #legal-consent-content {background:#fff;padding:2em;border-radius:1em;max-width:500px;text-align:center;}
+    #legal-consent-content a {color:#06c;text-decoration:underline;}
   </style>
 </head>
 <body class="bg-gray-950 min-h-screen flex flex-col items-center px-2">
+  <!-- LEGAL CONSENT MODAL -->
+  <div id="legal-consent-modal" style="display:none;">
+    <div id="legal-consent-content">
+      <h2>Terms of Service & Privacy Policy</h2>
+      <p>
+        You must agree to the
+        <a href="https://shroomtop420.com/tos" target="_blank">Terms of Service</a> and
+        <a href="https://shroomtop420.com/privacy" target="_blank">Privacy Policy</a><br>
+        governed by the laws of Baxter, MN and the United States.<br>
+        If located in EU/CA/BR, additional rights apply.
+      </p>
+      <button id="consentBtn" style="background:#36c;padding:1em 2em;border:none;border-radius:0.5em;color:#fff;font-size:1.2em;cursor:pointer;">I Agree</button>
+    </div>
+  </div>
   <header class="w-full max-w-2xl text-center py-6">
     <h1 class="text-2xl font-bold mb-2">Shroomtop420™ Repo Perfection Tool</h1>
     <p class="text-base text-gray-400 mb-4">Audit, fix, and track every GitHub repo to 100%—no placeholders, no dead ends. All offline, mobile-first.</p>
@@ -80,6 +97,26 @@
     <div>Built by Shroomtop420™ | MIT | <span id="version"></span></div>
   </footer>
   <script>
+    // === LEGAL DNA MODULES ===
+    const LEGAL_DNA = {
+      jurisdiction: "US/MN/Baxter",
+      export_tag: "EAR99",
+      spdx: "MIT",
+      artifact_time: Date.now(),
+      def_pub: "OIN",
+      consent_req: true,
+      city: "Baxter"
+    };
+    // Consent overlay logic
+    function showLegalConsent() {
+      document.getElementById("legal-consent-modal").style.display = "flex";
+      document.getElementById("consentBtn").onclick = function() {
+        localStorage.setItem("legal_consent_v1", Date.now());
+        document.getElementById("legal-consent-modal").style.display = "none";
+      }
+    }
+    if(!localStorage.getItem("legal_consent_v1")) showLegalConsent();
+
     // --- Collapsible Instructions Logic ---
     function toggleInstructions() {
       const el = document.getElementById('instructions');
@@ -174,7 +211,7 @@
         hasTopics: repo.topics && repo.topics.length > 1,
         hasRelease: !!audit.hasRelease,
         hasHomepage: !!repo.homepage,
-        hasBadges: false, // not auto-detectable, treat as missing
+        hasBadges: false,
         hasActions: !!audit.hasActions
       };
       const missing = checklist.filter(item => !auditMap[item.key]).map(item => item.label);
@@ -183,7 +220,6 @@
       let completed = existing.length, total = checklist.length;
       const percent = Math.round(100 * completed / total);
 
-      // --- UI ---
       repoDiv.innerHTML = `
         <div class="flex items-center mb-2">
           <a href="${repo.html_url}" target="_blank" class="font-mono text-cyan-300 underline mr-2">${repo.name}</a>
@@ -211,13 +247,13 @@
             homepage: repo.homepage || "",
             topics: repo.topics || [],
             existing,
-            missing
+            missing,
+            legal_dna: LEGAL_DNA
           })})'>Generate ChatGPT Prompt</button>
         ` : ""}
         <div id="log-${repo.name}" class="text-xs text-yellow-300 mt-2"></div>
       `;
     }
-    // --- Audit Repo All Items ---
     async function auditRepo(user, token, repo) {
       async function fileExists(path) {
         const resp = await fetch(`https://api.github.com/repos/${user}/${repo.name}/contents/${path}`, {
@@ -247,10 +283,10 @@
         hasActions: await hasActions()
       };
     }
-    // --- Generate maximally-informative prompt for ChatGPT ---
     window.generateRepoPrompt = function(repoInfo) {
-      const { name, url, language, description, homepage, topics, existing, missing } = repoInfo;
-      const prompt = 
+      const { name, url, language, description, homepage, topics, existing, missing, legal_dna } = repoInfo;
+      const legalNote = `LEGAL-DNA: ${JSON.stringify(legal_dna)}`;
+      const prompt =
 `You are a senior GitHub repo optimizer.
 
 **Repo:** ${name}
@@ -262,6 +298,8 @@
 **Existing Elements:** ${existing.join(", ") || "(none)"}
 **Missing Elements:** ${missing.join(", ")}
 
+**Legal:** ${legalNote}
+
 **Task:** For the above repo, generate production-quality versions for ALL missing elements, with no placeholders or boilerplate.
 - If README.md is missing, write a full, best-practice README.md based on the repo name, context, and URL.
 - If LICENSE is missing, use MIT unless another is better.
@@ -272,8 +310,7 @@
 
 **Output:** All generated content in separate, labeled code blocks, and a summary table of all updates.
 
-**No placeholders. All content must be real and maximally useful for this repo’s purpose.**
-
+**No placeholders. All content must be real, maximally useful, and compliant with U.S./Minnesota (Baxter) law.**
 ---
 `;
       navigator.clipboard.writeText(prompt).then(()=>{
