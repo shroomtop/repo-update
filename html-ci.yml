@@ -1,0 +1,14 @@
+name: HTML Lint & Build
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  html-lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tidy‑html5
+        run: sudo apt-get update && sudo apt-get install -y tidy
+      - name: Lint HTML
+        run: tidy -qe **/*.html

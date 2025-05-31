@@ -1,0 +1,20 @@
+# Primary output
+dist/
+build/
+
+# Logs & OS noise
+*.log
+.DS_Store
+Thumbs.db
+
+# IDE/Editor folders
+.vscode/
+.idea/
+
+# Node & package managers (in case JS helpers are added)
+node_modules/
+package-lock.json
+npm-debug.log*
+
+# Backup files
+*~
