@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="en" class="bg-gray-950 text-white min-h-screen">
+<head>
+  <meta charset="UTF-8">
+  <title>Shroomtop420™ Repo Mass Upgrade Tool</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta name="theme-color" content="#111827">
+  <meta name="description" content="Mass-upgrade GitHub repos with real, production files. No placeholders. Built-in secure token instructions.">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    ::selection { background: #00ffe7; color: #222; }
+    .btn { @apply px-2 py-1 rounded bg-cyan-600 hover:bg-cyan-700 transition; }
+    .btn-red { @apply bg-red-500 hover:bg-red-700; }
+    .btn-yellow { @apply bg-yellow-500 hover:bg-yellow-600 text-black; }
+    .collapsible { cursor:pointer; }
+  </style>
+</head>
+<body class="bg-gray-950 min-h-screen flex flex-col items-center px-2">
+  <header class="w-full max-w-2xl text-center py-6">
+    <h1 class="text-2xl font-bold mb-2">Shroomtop420™ Repo Mass Upgrade Tool</h1>
+    <p class="text-base text-gray-400 mb-4">Audit & upgrade all repos — only real files, no placeholders. 100% offline/PWA, mobile-first.</p>
+    <!-- Collapsible Token Instructions -->
+    <div class="w-full max-w-xl mx-auto mb-4 rounded-lg bg-gray-900 border border-cyan-800">
+      <div class="collapsible py-3 px-4 font-semibold text-cyan-300 flex items-center justify-between" onclick="toggleInstructions()">
+        <span>🛡️ How to set up your GitHub Access Token</span>
+        <span id="collapser" class="text-cyan-400 text-xl ml-2">&#x25BC;</span>
+      </div>
+      <div id="instructions" class="px-4 pb-4 text-sm text-left bg-gray-900" style="display:none">
+        <ol class="list-decimal pl-4 mb-2">
+          <li>
+            <b>Visit <a href="https://github.com/settings/tokens" target="_blank" class="text-cyan-300 underline">GitHub PATs</a> (fine-grained preferred)</b>
+          </li>
+          <li>
+            <b>Click “Generate new token” &rarr; “Fine-grained token”</b>
+            <ul class="list-disc pl-6">
+              <li><b>Name:</b> <code>Shroomtop420-Repo-Upgrade</code></li>
+              <li><b>Expiration:</b> <code>30 days</code> (recommended)</li>
+              <li><b>Repository access:</b> “All repositories” or just select the ones you want to edit</li>
+            </ul>
+          </li>
+          <li>
+            <b>Permissions: Only grant what's needed:</b>
+            <ul class="list-disc pl-6">
+              <li><b>Repository permissions:</b>
+                <ul class="list-disc pl-6">
+                  <li><b>Contents:</b> <span class="text-green-400">Read and write</span> (required for file upload)</li>
+                  <li>All others: <span class="text-yellow-300">No access</span></li>
+                </ul>
+              </li>
+            </ul>
+          </li>
+          <li>
+            <b>Generate token & copy it safely.</b>
+          </li>
+          <li>
+            <b>Paste token and your GitHub username into this tool.</b>
+          </li>
+        </ol>
+        <div class="mb-2">
+          <b>Security best practices:</b>
+          <ul class="list-disc pl-6">
+            <li>Never share your token or upload it anywhere online.</li>
+            <li>Use a dedicated, short-lived token for this tool.</li>
+            <li>Fine-grained PATs limit risk and can be revoked anytime.</li>
+            <li>“Read and write Contents” is <b>only</b> so this tool can add files you approve—no other permission is needed.</li>
+          </ul>
+        </div>
+        <div class="text-xs text-cyan-300 mb-1">
+          <b>Want even tighter control?</b> Use “Only select repositories” for the minimum set of repos.
+        </div>
+        <div class="text-xs text-gray-400">Full details: <a href="https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/creating-a-personal-access-token" target="_blank" class="underline">GitHub PAT documentation</a></div>
+      </div>
+    </div>
+    <div class="flex flex-col sm:flex-row items-center justify-center gap-2 mb-2">
+      <input id="gh-user" type="text" placeholder="GitHub Username" class="rounded px-3 py-2 text-black" autocomplete="username">
+      <input id="gh-token" type="password" placeholder="PAT (write, fine-grained)" class="rounded px-3 py-2 text-black" autocomplete="off">
+      <button id="gh-login" class="btn font-bold">Connect</button>
+      <button id="gh-clear" class="ml-2 text-sm text-red-400 underline">Clear</button>
+    </div>
+    <div id="status" class="mt-2 text-xs text-yellow-300"></div>
+  </header>
+  <main id="app" class="w-full max-w-4xl flex-1"></main>
+  <footer class="w-full max-w-2xl text-xs text-gray-600 py-2 text-center mt-8">
+    <div>Built by Shroomtop420™ | MIT | <span id="version"></span></div>
+  </footer>
+  <script>
+    // --- Collapsible Instructions Logic ---
+    function toggleInstructions() {
+      const el = document.getElementById('instructions');
+      const arrow = document.getElementById('collapser');
+      if (el.style.display === "none") {
+        el.style.display = "";
+        arrow.innerHTML = "&#x25B2;";
+      } else {
+        el.style.display = "none";
+        arrow.innerHTML = "&#x25BC;";
+      }
+    }
+    // --- Version ---
+    const VERSION = "v1.2 — May 30, 2025";
+    document.getElementById('version').textContent = VERSION;
+    // --- Auth ---
+    const userEl = document.getElementById('gh-user');
+    const tokenEl = document.getElementById('gh-token');
+    userEl.value = localStorage.getItem('ghUser') || '';
+    tokenEl.value = localStorage.getItem('ghToken') || '';
+    document.getElementById('gh-login').onclick = () => {
+      const username = userEl.value.trim(), token = tokenEl.value.trim();
+      if (!username || !token) return status('Enter username & PAT token', true);
+      localStorage.setItem('ghUser', username);
+      localStorage.setItem('ghToken', token);
+      loadRepos(username, token);
+    };
+    document.getElementById('gh-clear').onclick = () => {
+      localStorage.removeItem('ghUser');
+      localStorage.removeItem('ghToken');
+      userEl.value = tokenEl.value = '';
+      document.getElementById('app').innerHTML = '';
+    };
+    function status(msg, warn) {
+      document.getElementById('status').textContent = msg;
+      document.getElementById('status').className = warn ? "mt-2 text-xs text-red-400" : "mt-2 text-xs text-yellow-300";
+    }
+    // --- Repo Fetch ---
+    async function loadRepos(user, token) {
+      status('Loading repos…');
+      const app = document.getElementById('app');
+      app.innerHTML = `<div class="text-center mt-8 animate-pulse">Fetching repositories…</div>`;
+      let repos = [], page = 1;
+      try {
+        while (true) {
+          const resp = await fetch(`https://api.github.com/user/repos?per_page=100&page=${page}`, {
+            headers: { 'Authorization': 'token ' + token }
+          });
+          if (!resp.ok) throw new Error('GitHub API error');
+          const data = await resp.json();
+          if (!data.length) break;
+          repos = repos.concat(data);
+          if (data.length < 100) break;
+          page++;
+        }
+        if (!repos.length) return status('No repos found or bad token.', true);
+        status(`Loaded ${repos.length} repositories.`);
+        app.innerHTML = `
+          <div class="mb-3 font-bold text-lg">Repositories: <span class="text-cyan-400">${repos.length}</span></div>
+          <div id="repo-list" class="grid grid-cols-1 md:grid-cols-2 gap-2"></div>
+        `;
+        for (const r of repos) renderRepoCard(user, token, r);
+      } catch (e) {
+        status('Error: ' + e.message, true);
+        app.innerHTML = `<div class="text-red-400 mt-8">Failed to load. Check token/username.</div>`;
+      }
+    }
+    // --- Audit and Render ---
+    async function renderRepoCard(user, token, repo) {
+      const repoDiv = document.createElement('div');
+      repoDiv.className = "bg-gray-900 rounded-xl p-3 mb-2 shadow border border-gray-700";
+      repoDiv.innerHTML = `
+        <div class="flex items-center mb-2">
+          <a href="${repo.html_url}" target="_blank" class="font-mono text-cyan-300 underline mr-2">${repo.name}</a>
+          <span class="text-xs text-gray-400 ml-auto">${repo.language||''}</span>
+        </div>
+        <div id="audit-${repo.name}" class="text-xs mb-2"></div>
+        <div id="actions-${repo.name}" class="flex flex-wrap gap-2"></div>
+        <div id="log-${repo.name}" class="text-xs text-yellow-300 mt-2"></div>
+      `;
+      document.getElementById('repo-list').appendChild(repoDiv);
+      const audit = await auditRepo(user, token, repo);
+      // Audit summary
+      let summary = [];
+      if (!audit.hasReadme) summary.push("Missing README.md");
+      if (!audit.hasLicense) summary.push("Missing LICENSE");
+      if (!audit.hasGitignore) summary.push("Missing .gitignore");
+      if (!repo.description) summary.push("No Description");
+      if (!repo.topics || !repo.topics.length) summary.push("No Topics");
+      document.getElementById(`audit-${repo.name}`).innerHTML = summary.length
+        ? `<span class="text-red-400">Needs:</span> ${summary.join(", ")}`
+        : `<span class="text-green-400">Complete</span>`;
+      // Actions
+      const actionsDiv = document.getElementById(`actions-${repo.name}`);
+      // LICENSE (MIT template)
+      if (!audit.hasLicense) {
+        const btn = document.createElement('button');
+        btn.textContent = "Add MIT License";
+        btn.className = "btn";
+        btn.onclick = () => pushFile(user, token, repo, "LICENSE", mitLicense(), "Add MIT LICENSE", `log-${repo.name}`);
+        actionsDiv.appendChild(btn);
+      }
+      // .gitignore (lang-specific)
+      if (!audit.hasGitignore && detectGitignore(repo.language)) {
+        const btn = document.createElement('button');
+        btn.textContent = "Add .gitignore";
+        btn.className = "btn";
+        btn.onclick = () => pushFile(user, token, repo, ".gitignore", detectGitignore(repo.language), "Add .gitignore", `log-${repo.name}`);
+        actionsDiv.appendChild(btn);
+      }
+      // README.md (user-supplied)
+      if (!audit.hasReadme) {
+        const btn = document.createElement('button');
+        btn.textContent = "Add README.md";
+        btn.className = "btn-yellow";
+        btn.onclick = () => {
+          const content = prompt("Paste full real README.md content for this repo:");
+          if (content && content.trim().length > 10) {
+            pushFile(user, token, repo, "README.md", content.trim(), "Add README.md", `log-${repo.name}`);
+          } else {
+            alert("Please enter a real README (not empty).");
+          }
+        };
+        actionsDiv.appendChild(btn);
+      }
+      // Description
+      if (!repo.description) {
+        const btn = document.createElement('button');
+        btn.textContent = "Set Description";
+        btn.className = "btn-yellow";
+        btn.onclick = () => {
+          const desc = prompt("Enter project description:");
+          if (desc && desc.trim().length > 5) {
+            updateMetadata(user, token, repo, { description: desc.trim() }, `log-${repo.name}`);
+          } else {
+            alert("Please enter a real description.");
+          }
+        };
+        actionsDiv.appendChild(btn);
+      }
+      // Topics
+      if (!repo.topics || !repo.topics.length) {
+        const btn = document.createElement('button');
+        btn.textContent = "Set Topics";
+        btn.className = "btn-yellow";
+        btn.onclick = () => {
+          const topics = prompt("Comma-separated topics (at least 2):");
+          if (topics && topics.split(",").length > 1) {
+            updateMetadata(user, token, repo, { topics: topics.split(",").map(t=>t.trim()).filter(Boolean) }, `log-${repo.name}`);
+          } else {
+            alert("Please enter at least two topics.");
+          }
+        };
+        actionsDiv.appendChild(btn);
+      }
+      // Open Issue for any missing that can't be fixed
+      if (!audit.hasReadme || !audit.hasLicense || !audit.hasGitignore || !repo.description || !repo.topics || !repo.topics.length) {
+        const btn = document.createElement('button');
+        btn.textContent = "Open Issue (manual fix)";
+        btn.className = "btn-red";
+        btn.onclick = () => {
+          openIssue(user, token, repo, "Incomplete Repository", `Please add missing files: ${summary.join(", ")} (Shroomtop420™ Audit)`, `log-${repo.name}`);
+        };
+        actionsDiv.appendChild(btn);
+      }
+    }
+    // --- Audit Repo ---
+    async function auditRepo(user, token, repo) {
+      // Check for files
+      async function fileExists(path) {
+        const resp = await fetch(`https://api.github.com/repos/${user}/${repo.name}/contents/${path}`, {
+          headers: { 'Authorization': 'token ' + token }
+        });
+        return resp.ok;
+      }
+      return {
+        hasReadme: await fileExists("README.md"),
+        hasLicense: await fileExists("LICENSE"),
+        hasGitignore: await fileExists(".gitignore")
+      };
+    }
+    // --- Push File ---
+    async function pushFile(user, token, repo, path, content, message, logId) {
+      const url = `https://api.github.com/repos/${user}/${repo.name}/contents/${path}`;
+      const existing = await fetch(url, { headers: { 'Authorization': 'token ' + token } });
+      let sha = null;
+      if (existing.ok) sha = (await existing.json()).sha;
+      const body = {
+        message,
+        content: btoa(unescape(encodeURIComponent(content))),
+        committer: { name: "Shroomtop420™ Bot", email: "bot@shroomtop420.com" }
+      };
+      if (sha) body.sha = sha;
+      const resp = await fetch(url, {
+        method: "PUT",
+        headers: { 'Authorization': 'token ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      document.getElementById(logId).textContent = resp.ok
+        ? `[OK] ${path} pushed.`
+        : `[FAIL] ${resp.status} ${await resp.text()}`;
+    }
+    // --- Update Metadata ---
+    async function updateMetadata(user, token, repo, updates, logId) {
+      const url = `https://api.github.com/repos/${user}/${repo.name}`;
+      const resp = await fetch(url, {
+        method: "PATCH",
+        headers: { 'Authorization': 'token ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify(updates)
+      });
+      document.getElementById(logId).textContent = resp.ok
+        ? `[OK] Metadata updated.`
+        : `[FAIL] ${resp.status} ${await resp.text()}`;
+    }
+    // --- Open Issue ---
+    async function openIssue(user, token, repo, title, body, logId) {
+      const url = `https://api.github.com/repos/${user}/${repo.name}/issues`;
+      const resp = await fetch(url, {
+        method: "POST",
+        headers: { 'Authorization': 'token ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, body })
+      });
+      document.getElementById(logId).textContent = resp.ok
+        ? `[ISSUE] Created for ${repo.name}.`
+        : `[FAIL] ${resp.status} ${await resp.text()}`;
+    }
+    // --- MIT License ---
+    function mitLicense() {
+      return `MIT License
+
+Copyright (c) 2025 Shroomtop420™
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+`;
+    }
+    // --- .gitignore Generator ---
+    function detectGitignore(lang) {
+      if (!lang) return null;
+      lang = lang.toLowerCase();
+      if (lang.includes("python")) return "venv/\n__pycache__/\n*.pyc\n.env\n";
+      if (lang.includes("javascript") || lang.includes("node")) return "node_modules/\n.env\n";
+      if (lang.includes("java")) return "target/\n*.class\n";
+      if (lang.includes("c++")) return "*.o\n*.out\n";
+      return null;
+    }
+    // --- Auto-login if creds ---
+    if (userEl.value && tokenEl.value) document.getElementById('gh-login').click();
+  </script>
+</body>
+</html>
